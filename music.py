@@ -1,53 +1,37 @@
-import flet as ft
 import yt_dlp
+import syncedlyrics
 import os
+import re
 
-def main(page: ft.Page):
-    page.title = "Aesthetic Music Downloader"
-    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+def clean_title(title):
+    # Removes text inside () or [] to make searching easier
+    return re.sub(r'\([^)]*\)|\[[^\]]*\]', '', title).strip()
 
-    # 1. Define Input and Output
-    url_field = ft.TextField(label="Paste YouTube URL here", width=400)
-    status_text = ft.Text("Ready to download...")
-
-    # 2. Download Logic
-    def download_audio(e):
-        url = url_field.value
-        if not url:
-            status_text.value = "Please enter a URL!"
-            page.update()
-            return
-
-        status_text.value = "Downloading..."
-        page.update()
-
-        try:
-            # Setup yt-dlp options
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'outtmpl': 'downloads/%(title)s.%(ext)s',
-            }
-            
-            # Run download
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-                
-            status_text.value = "Download complete!"
-        except Exception as ex:
-            status_text.value = f"Error: {ex}"
+def process_song():
+    url = input("Paste the YouTube URL: ")
+    
+    # 1. Download
+    print("Downloading audio...")
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+        'outtmpl': 'song.%(ext)s',
+    }
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        title = info.get('title', 'Unknown Title')
         
-        page.update()
+    # 2. Lyrics
+    print(f"Searching for lyrics for: {title}")
+    query = clean_title(title)
+    lrc = syncedlyrics.search(query)
+    
+    if lrc:
+        with open("song.lrc", "w", encoding="utf-8") as f:
+            f.write(lrc)
+        print("Success! song.mp3 and song.lrc are saved.")
+    else:
+        print("Audio downloaded, but no synced lyrics were found.")
 
-    # 3. Add to UI
-    page.add(
-        url_field,
-        ft.ElevatedButton("Download MP3", on_click=download_audio),
-        status_text
-    )
-
-ft.app(target=main)
+process_song()
