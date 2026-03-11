@@ -22,9 +22,9 @@ def main(page: ft.Page):
 
     # Dynamic path construction
     base_dir = os.path.join(os.getcwd(), "MusicLibrary")
-    artist = "Luci4"
-    album = "Hey"
-    song = "Hey"
+    artist = "Tyler， The Creator, Frank Ocean"
+    album = "Flower Boy"
+    song = "Where This Flower Blooms"
 
     audio_path = os.path.join(base_dir, artist, album, f"{song}.mp3")
     lrc_path = os.path.join(base_dir, artist, album, f"{song}.lrc")
@@ -35,7 +35,7 @@ def main(page: ft.Page):
     with open(lrc_path, "r", encoding="utf-8") as f:
         lrc_data = parse_lrc(f.read())
 
-    lyric_display = ft.Text("Press Play", size=24, weight="bold")
+    lyric_display = ft.Text("Press Play", size=32, weight="bold", text_align=ft.TextAlign.CENTER)
     time_display = ft.Text("00:00", size=12)
     volume_slider = ft.Slider(min=0, max=100, value=70, width=200, on_change=lambda e: pygame.mixer.music.set_volume(e.control.value / 100))
     progress_slider = ft.Slider(min=0, max=1, value=0, width=300)
@@ -82,34 +82,40 @@ def main(page: ft.Page):
     page.run_task(sync_loop)
 
     page.add(
-        ft.Container(
-            ft.Column([
-                ft.Text("LRC Sync Player", size=28, weight="bold"),
-                ft.Divider(),
-                ft.Container(
-                    lyric_display,
-                    padding=20,
-                    bgcolor="#455a64",
-                    border_radius=10,
-                    height=100,
-                    width=400,
-                    alignment=ft.Alignment(0, 0)
-                ),
-                time_display,
-                progress_slider,
-                ft.Row([
-                    ft.Button("Play", on_click=lambda _: pygame.mixer.music.play()),
-                    ft.Button("Pause", on_click=lambda _: pygame.mixer.music.pause()),
-                    ft.Button("Stop", on_click=lambda _: pygame.mixer.music.stop()),
-                ], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Row([
-                    ft.Text("Volume:", size=12),
-                    volume_slider,
-                    ft.Text(f"{int(volume_slider.value)}%", size=12, width=30)
-                ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ], alignment=ft.MainAxisAlignment.START, spacing=15),
-            padding=20
-        )
+    ft.Row(
+        [
+            ft.Container(
+                ft.Column([
+                    ft.Text("LRC Sync Player", size=28, weight="bold"),
+                    ft.Divider(),
+                    ft.Container(
+                        lyric_display,
+                        padding=30,
+                        bgcolor="#455a64",
+                        border_radius=10,
+                        height=160,
+                        width=600,
+                        alignment=ft.Alignment(0, 0)
+                    ),
+                    time_display,
+                    progress_slider,
+                    ft.Row([
+                        ft.Button("Play", on_click=lambda _: pygame.mixer.music.play()),
+                        ft.Button("Pause", on_click=lambda _: pygame.mixer.music.pause()),
+                        ft.Button("Stop", on_click=lambda _: pygame.mixer.music.stop()),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
+                    ft.Row([
+                        ft.Text("Volume:", size=12),
+                        volume_slider,
+                        ft.Text(f"{int(volume_slider.value)}%", size=12, width=30)
+                    ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ], alignment=ft.MainAxisAlignment.START, spacing=15),
+                padding=20
+            )
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER
     )
+)
 
 ft.run(main)
