@@ -5,26 +5,27 @@ from pytubefix import YouTube
 import syncedlyrics
 import urllib3
 
-# Hides the SSL warnings from school filters
+# Hides SSL warnings for school networks
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def clean_filename(name):
-    # Removes characters that aren't allowed in Windows folder/file names
+    # Removes characters that are not allowed in Windows file names
     return re.sub(r'[\\/*?:"<>|]', "", str(name)).strip()
 
 def process_song():
     url = input("Paste the YouTube URL: ")
     
     print("Fetching metadata...")
-    yt = YouTube(url)
+    try:
+        yt = YouTube(url)
+        title = clean_filename(yt.title)
+        artist = clean_filename(yt.author)
+        thumb_url = yt.thumbnail_url
+    except Exception as e:
+        print(f"Error connecting to YouTube: {e}")
+        return
     
-    # Get the basic info
-    title = clean_filename(yt.title)
-    artist = clean_filename(yt.author)
-    thumb_url = yt.thumbnail_url
-    
-    # 1. Build the directory structure
-    # Path: MusicLibrary / Artist Name / Song Title
+    # 1. Build the directory structure: MusicLibrary / Artist Name / Song Title
     script_dir = os.path.dirname(os.path.abspath(__file__))
     base_dir = os.path.join(script_dir, "MusicLibrary")
     target_dir = os.path.join(base_dir, artist, title)
@@ -34,17 +35,19 @@ def process_song():
 
     # 2. Download Audio
     print(f"Downloading '{title}' to {target_dir}...")
-    audio_stream = yt.streams.get_audio_only()
-    
-    # Download as the raw format first
-    downloaded_file = audio_stream.download(output_path=target_dir, filename=f"{title}")
-    
-    # Rename to .mp3 extension
-    base, ext = os.path.splitext(downloaded_file)
-    new_file = base + '.mp3'
-    if os.path.exists(new_file):
-        os.remove(new_file)
-    os.rename(downloaded_file, new_file)
+    try:
+        audio_stream = yt.streams.get_audio_only()
+        
+        # Determine extension from the stream's MIME type (e.g., audio/webm -> webm)
+        ext = audio_stream.mime_type.split('/')[-1]
+        filename = f"{title}.mp3"
+        
+        # Download with explicit extension
+        audio_stream.download(output_path=target_dir, filename=filename)
+        print(f"Successfully downloaded: {filename}")
+    except Exception as e:
+        print(f"Audio download failed: {e}")
+        return
                 
     # 3. Download Thumbnail (SSL Bypass for school)
     if thumb_url:
@@ -62,11 +65,14 @@ def process_song():
         if lrc:
             with open(os.path.join(target_dir, f"{title}.lrc"), "w", encoding="utf-8") as f:
                 f.write(lrc)
-            print("Success! Folder created with MP3, Thumbnail, and Lyrics.")
+            print("Success! Folder created with audio, Thumbnail, and Lyrics.")
         else:
-            print(f"Saved to {target_dir} (but no lyrics found).")
+            print(f"Saved to {target_dir} (no lyrics found).")
     except Exception:
         print("Lyric search failed.")
 
-
-process_song()
+if __name__ == "__main__":
+    while True:
+        process_song()
+        if input("\nProcess another? (y/n): ").lower() != 'y':
+            break

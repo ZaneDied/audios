@@ -1,7 +1,6 @@
 import flet as ft
-import pygame
+import vlc
 import re
-import time
 import asyncio
 import os
 
@@ -29,61 +28,48 @@ def main(page: ft.Page):
     audio_path = os.path.join(base_dir, artist, album, f"{song}.mp3")
     lrc_path = os.path.join(base_dir, artist, album, f"{song}.lrc")
 
-    pygame.mixer.init()
-    pygame.mixer.music.load(audio_path)
+    # Initialize VLC with flags to handle fragmented/discontinuous streams
+    instance = vlc.Instance("--no-xlib", "--quiet") 
+    player = instance.media_player_new()
+    media = instance.media_new(audio_path)
+    player.set_media(media)
 
-    with open(lrc_path, "r", encoding="utf-8") as f:
-        lrc_data = parse_lrc(f.read())
+    lrc_data = []
+    if os.path.exists(lrc_path):
+        with open(lrc_path, "r", encoding="utf-8") as f:
+            lrc_data = parse_lrc(f.read())
 
     lyric_display = ft.Text("Press Play", size=32, weight="bold", text_align=ft.TextAlign.CENTER)
     time_display = ft.Text("00:00", size=12)
-    volume_slider = ft.Slider(min=0, max=100, value=70, width=200, on_change=lambda e: pygame.mixer.music.set_volume(e.control.value / 100))
+    volume_slider = ft.Slider(min=0, max=100, value=70, width=200, 
+                              on_change=lambda e: player.audio_set_volume(int(e.control.value)))
     progress_slider = ft.Slider(min=0, max=1, value=0, width=300)
     current_lyric_index = [-1]
-    is_updating = [False]
-
-    def update_volume(e):
-        pygame.mixer.music.set_volume(e.control.value / 100)
-
-    volume_slider.on_change = update_volume
 
     async def sync_loop():
         while True:
-            try:
-                if pygame.mixer.music.get_busy():
-                    current_pos = pygame.mixer.music.get_pos()
-                    seconds = int(current_pos // 1000)
-                    mins = seconds // 60
-                    secs = seconds % 60
-                    time_display.value = f"{mins:02d}:{secs:02d}"
-                    if lrc_data:
-                        total_duration = lrc_data[-1]["time"]
-                        if total_duration > 0:
-                            progress_slider.value = min(current_pos / total_duration, 1.0)
+            if player.is_playing():
+                current_pos = player.get_time()
+                seconds = int(current_pos // 1000)
+                time_display.value = f"{seconds // 60:02d}:{seconds % 60:02d}"
+                
+                if lrc_data:
+                    total_duration = lrc_data[-1]["time"]
+                    if total_duration > 0:
+                        progress_slider.value = min(current_pos / total_duration, 1.0)
                     for i in range(len(lrc_data)):
                         if lrc_data[i]["time"] <= current_pos:
-                            if i + 1 < len(lrc_data) and current_pos < lrc_data[i+1]["time"]:
+                            if i == len(lrc_data) - 1 or current_pos < lrc_data[i+1]["time"]:
                                 if current_lyric_index[0] != i:
                                     current_lyric_index[0] = i
                                     lyric_display.value = lrc_data[i]["text"]
-                            else:
-                                if i == len(lrc_data) - 1 and current_lyric_index[0] != i:
-                                    current_lyric_index[0] = i
-                                    lyric_display.value = lrc_data[i]["text"]
-                    page.update()
-                else:
-                    time_display.value = "00:00"
-                    lyric_display.value = "Press Play"
-                    page.update()
-            except Exception as e:
-                print(f"Sync loop error: {e}")
+                page.update()
             await asyncio.sleep(0.05)
 
     page.run_task(sync_loop)
 
     page.add(
-    ft.Row(
-        [
+        ft.Row([
             ft.Container(
                 ft.Column([
                     ft.Text("LRC Sync Player", size=28, weight="bold"),
@@ -100,22 +86,18 @@ def main(page: ft.Page):
                     time_display,
                     progress_slider,
                     ft.Row([
-                        ft.Button("Play", on_click=lambda _: pygame.mixer.music.play()),
-                        ft.Button("Pause", on_click=lambda _: pygame.mixer.music.pause()),
-                        ft.Button("Stop", on_click=lambda _: pygame.mixer.music.stop()),
+                        ft.Button("Play", on_click=lambda _: player.play()),
+                        ft.Button("Pause", on_click=lambda _: player.pause()),
+                        ft.Button("Stop", on_click=lambda _: player.stop()),
                     ], alignment=ft.MainAxisAlignment.CENTER),
                     ft.Row([
                         ft.Text("Volume:", size=12),
                         volume_slider,
-                        ft.Text(f"{int(volume_slider.value)}%", size=12, width=30)
-                    ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
                 ], alignment=ft.MainAxisAlignment.START, spacing=15),
                 padding=20
             )
-        ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        vertical_alignment=ft.CrossAxisAlignment.CENTER
+        ], alignment=ft.MainAxisAlignment.CENTER)
     )
-)
 
 ft.run(main)
