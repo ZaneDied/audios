@@ -1,0 +1,1 @@
+I will make this my first official day of the audio platform, I have created a bunch of version to adapt to the enviroment, now I am trying to have a visual layout of the platform. 17/3
