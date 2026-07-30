@@ -4,7 +4,7 @@ import os
 import shutil
 import asyncio
 from request import download_youtube_track
-
+ft.Icons = ft.icons
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.join(SCRIPT_DIR, "MusicLibrary")
 
