@@ -6,24 +6,6 @@ import asyncio
 import os
 from PIL import Image
 
-def get_average_color(image_path_or_url, fallback_color="#5B1D1D"):
-    """Calculates average color by resizing image to 1x1 pixel."""
-    try:
-        if not os.path.exists(image_path_or_url):
-            return fallback_color
-
-        with Image.open(image_path_or_url) as img:
-            img = img.convert("RGB")
-            # Resizing to 1x1 averages all pixel colors
-            img = img.resize((1, 1))
-            r, g, b = img.getpixel((0, 0))
-            
-            # Optional: Dim the color slightly so text stays high-contrast
-            r, g, b = int(r * 0.4), int(g * 0.4), int(b * 0.4)
-            
-            return f"#{r:02x}{g:02x}{b:02x}"
-    except Exception:
-        return fallback_color
 def parse_lrc(lrc_content):
     lyrics = []
     pattern = r"\[(\d{2}):(\d{2})(?:[\.:](\d{2,3}))?\](.*)"
@@ -44,6 +26,24 @@ def format_time(ms):
     seconds = max(0, int(ms // 1000))
     return f"{seconds // 60:02d}:{seconds % 60:02d}"
 
+def get_average_color(image_path_or_url, fallback_color="#121212"):
+    """Calculates average color by resizing image to 1x1 pixel and darkening it slightly."""
+    try:
+        if not os.path.exists(image_path_or_url):
+            return fallback_color
+
+        with Image.open(image_path_or_url) as img:
+            img = img.convert("RGB")
+            img = img.resize((1, 1))
+            r, g, b = img.getpixel((0, 0))
+            
+            # Dim color slightly for readability contrast
+            r, g, b = int(r * 0.35), int(g * 0.35), int(b * 0.35)
+            
+            return f"#{r:02x}{g:02x}{b:02x}"
+    except Exception:
+        return fallback_color
+
 class PlayerWidget:
     def __init__(self, page: ft.Page, browse_widget=None):
         self.page = page
@@ -54,9 +54,9 @@ class PlayerWidget:
         self.is_seeking = False
         self.browse_widget = browse_widget
 
-        # --- Geometry for Exact Centering ---
-        self.LINE_HEIGHT = 50       # Fixed height per lyric block
-        self.CENTER_OFFSET = 220    # Pixel distance from top to screen center
+        # --- Geometry for Exact Lyric Centering ---
+        self.LINE_HEIGHT = 50
+        self.CENTER_OFFSET = 220
 
         # --- Left Panel Controls ---
         self.track_title = ft.Text("No Track Selected", size=24, weight="bold", color="white")
@@ -74,13 +74,12 @@ class PlayerWidget:
             alignment=ft.Alignment(0, 0)
         )
 
-        # --- Right Panel Controls (Position Animated Lyrics) ---
+        # --- Right Panel Controls (Animated Lyrics Viewport) ---
         self.lyrics_list_column = ft.Column(
             spacing=0,
             horizontal_alignment=ft.CrossAxisAlignment.START
         )
         
-        # Container that slides vertically via smooth position animation
         self.animated_lyrics_box = ft.Container(
             content=self.lyrics_list_column,
             top=self.CENTER_OFFSET,
@@ -89,12 +88,27 @@ class PlayerWidget:
             animate_position=ft.Animation(450, ft.AnimationCurve.DECELERATE)
         )
 
+        # Black-on-black theme on initial load
         self.lyrics_container = ft.Container(
             content=ft.Stack([self.animated_lyrics_box]),
             padding=ft.padding.symmetric(horizontal=40),
-            bgcolor="#5B1D1D",  # Dark Burgundy background
+            bgcolor="#121212",  # Black default on load
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
             expand=True
+        )
+
+        # --- Animated Collapsible Top Browse Drawer ---
+        self.is_drawer_open = False
+        self.browse_drawer = ft.Container(
+            content=self.browse_widget,
+            height=0,
+            opacity=0,
+            padding=0,
+            bgcolor="#121212",
+            border_radius=12,
+            border=ft.border.all(1, "#282828"),
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
+            animate=ft.Animation(300, ft.AnimationCurve.EASE_IN_OUT)
         )
 
         # --- Bottom Player Bar Controls ---
@@ -103,63 +117,99 @@ class PlayerWidget:
 
         self.progress_slider = ft.Slider(
             min=0, max=1, value=0,
-            active_color="white", inactive_color="#4D4D4D",
+            active_color="white", inactive_color="#333333",
             on_change=lambda e: setattr(self, 'is_seeking', True),
             on_change_end=self.on_seek,
             expand=True
         )
 
-        self.btn_play_pause = ft.IconButton(
-            icon=ft.Icons.PLAY_CIRCLE_FILL_ROUNDED,
-            icon_size=42,
-            icon_color="white",
-            on_click=self.toggle_play_pause
+        # Inner Icon for Play/Pause Animation
+        self.play_pause_icon = ft.Icon(
+            ft.Icons.PLAY_CIRCLE_FILL_ROUNDED,
+            size=46,
+            color="white"
         )
 
+        # Animated Switcher for Fluid Transition
+        self.btn_play_pause = ft.AnimatedSwitcher(
+            content=self.play_pause_icon,
+            transition=ft.AnimatedSwitcherTransition.SCALE,
+            duration=250,
+            reverse_duration=200,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+        )
+
+        # Clickable Circular Wrapper
+        self.btn_play_pause_wrapper = ft.Container(
+            content=self.btn_play_pause,
+            on_click=self.toggle_play_pause,
+            ink=True,
+            shape=ft.BoxShape.CIRCLE,
+            padding=4
+        )
+
+        # Styled Browse Button
+        self.btn_browse = ft.OutlinedButton(
+            content=ft.Text("Browse"),
+            icon=ft.Icons.VIEW_LIST_ROUNDED,
+            icon_color="#B3B3B3",
+            style=ft.ButtonStyle(
+                color="#FFFFFF",
+                side=ft.BorderSide(1, "#333333"),
+                shape=ft.RoundedRectangleBorder(radius=8),
+                padding=ft.padding.symmetric(horizontal=12, vertical=8)
+            ),
+            on_click=self.toggle_browse_drawer
+        )
+
+        # Lyric Offset Control
         self.lyric_offset_ms = 0
         self.offset_input = ft.TextField(
-            value="0", width=50, height=32, content_padding=2,
-            text_align=ft.TextAlign.CENTER, bgcolor="#181818",
-            border_color="#282828", focused_border_color="#6C5CE7",
+            value="0", width=48, height=30, content_padding=2,
+            text_align=ft.TextAlign.CENTER, bgcolor="#1A1A1A",
+            border_color="#333333", focused_border_color="#6C5CE7",
             border_radius=6, text_size=12,
             on_change=self.on_offset_text_change
         )
 
+        # Volume Slider
         self.volume_slider = ft.Slider(
-            min=0, max=100, value=70, width=90,
-            active_color="white", inactive_color="#4D4D4D",
+            min=0, max=100, value=70, width=130,
+            active_color="white", inactive_color="#333333",
             on_change=lambda e: self.player.audio_set_volume(int(e.control.value))
-        )
-
-        # --- Hidden Collapsible Browse Drawer ---
-        self.browse_drawer = ft.Container(
-            content=self.browse_widget,
-            visible=False,
-            padding=15,
-            bgcolor="#121212",
-            border_radius=12,
-            border=ft.border.all(1, "#282828")
-        )
-
-        self.btn_browse = ft.TextButton(
-            "Browse",
-            style=ft.ButtonStyle(color="white"),
-            on_click=self.toggle_browse_drawer
         )
 
         self.page.run_task(self._sync_loop)
 
     def toggle_browse_drawer(self, e=None):
-        self.browse_drawer.visible = not self.browse_drawer.visible
+        """Smoothly opens/closes the top drawer with increased open height for full track list visibility."""
+        self.is_drawer_open = not self.is_drawer_open
+        if self.is_drawer_open:
+            self.browse_drawer.height = 360  # Expanded height so all items fit
+            self.browse_drawer.opacity = 1
+            self.browse_drawer.padding = 15
+        else:
+            self.browse_drawer.height = 0
+            self.browse_drawer.opacity = 0
+            self.browse_drawer.padding = 0
         self.browse_drawer.update()
 
     def toggle_play_pause(self, e=None):
         if self.player.is_playing():
             self.player.pause()
-            self.btn_play_pause.icon = ft.Icons.PLAY_CIRCLE_FILL_ROUNDED
+            self.btn_play_pause.content = ft.Icon(
+                ft.Icons.PLAY_CIRCLE_FILL_ROUNDED,
+                size=46,
+                color="white"
+            )
         else:
             self.player.play()
-            self.btn_play_pause.icon = ft.Icons.PAUSE_CIRCLE_FILLED_ROUNDED
+            self.btn_play_pause.content = ft.Icon(
+                ft.Icons.PAUSE_CIRCLE_FILLED_ROUNDED,
+                size=46,
+                color="white"
+            )
         self.btn_play_pause.update()
 
     def on_offset_text_change(self, e):
@@ -190,15 +240,12 @@ class PlayerWidget:
         if not os.path.exists(webp_path):
             webp_path = os.path.join(base_dir, f"{song}.webp")
 
-        # Set cover art source
         if os.path.exists(webp_path):
             self.album_art.src = webp_path
-            # Dynamic background color from album art!
-            avg_color = get_average_color(webp_path)
-            self.lyrics_container.bgcolor = avg_color
+            self.lyrics_container.bgcolor = get_average_color(webp_path)
         else:
             self.album_art.src = "https://picsum.photos/300/300"
-            self.lyrics_container.bgcolor = "#5B1D1D"
+            self.lyrics_container.bgcolor = "#121212"
 
         self.track_title.value = song
         self.track_artist.value = f"{artist}" if artist == album else f"{artist} • {album}"
@@ -228,11 +275,15 @@ class PlayerWidget:
 
         self.current_lyric_index[0] = -1
         self.player.play()
-        self.btn_play_pause.icon = ft.Icons.PAUSE_CIRCLE_FILLED_ROUNDED
+        self.btn_play_pause.content = ft.Icon(
+            ft.Icons.PAUSE_CIRCLE_FILLED_ROUNDED,
+            size=46,
+            color="white"
+        )
         self.page.update()
 
     def render_lyrics_list(self):
-        """Creates each lyric block with exact fixed heights and medium-weight inactive font."""
+        """Creates each lyric block with exact fixed heights."""
         self.lyrics_list_column.controls.clear()
 
         for idx, line in enumerate(self.lrc_data):
@@ -241,8 +292,8 @@ class PlayerWidget:
                     content=ft.Text(
                         line["text"],
                         size=22,
-                        weight=ft.FontWeight.W_500,  # Fuller font weight for unactive lines
-                        color="#B0B0B0",             # Bright, clean gray
+                        weight=ft.FontWeight.W_500,
+                        color="#B0B0B0",
                         animate_opacity=200
                     ),
                     height=self.LINE_HEIGHT,
@@ -252,7 +303,7 @@ class PlayerWidget:
         self.animated_lyrics_box.top = self.CENTER_OFFSET
 
     def update_active_lyric(self, active_index):
-        """Highlights the active line and slides the entire container so active_index is centered."""
+        """Highlights active line and scrolls it into center."""
         for idx in range(len(self.lrc_data)):
             container = self.lyrics_list_column.controls[idx]
             txt = container.content
@@ -267,7 +318,6 @@ class PlayerWidget:
                 txt.color = "#B0B0B0"
                 txt.opacity = 0.75
 
-        # Calculate position so active_index lands directly at CENTER_OFFSET
         self.animated_lyrics_box.top = self.CENTER_OFFSET - (active_index * self.LINE_HEIGHT)
         
         if self.lyrics_container.page:
@@ -284,7 +334,11 @@ class PlayerWidget:
         self.player.stop()
         self.progress_slider.value = 0
         self.current_time_text.value = "0:00"
-        self.btn_play_pause.icon = ft.Icons.PLAY_CIRCLE_FILL_ROUNDED
+        self.btn_play_pause.content = ft.Icon(
+            ft.Icons.PLAY_CIRCLE_FILL_ROUNDED,
+            size=46,
+            color="white"
+        )
         self.page.update()
 
     async def _sync_loop(self):
@@ -334,23 +388,40 @@ class PlayerWidget:
                     self.current_time_text,
                     self.progress_slider,
                     self.total_time_text,
-                ], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
+                ], alignment=ft.MainAxisAlignment.CENTER, spacing=12),
 
                 ft.Row([
-                    self.btn_browse,
-                    self.btn_play_pause,
-                    ft.Row([
-                        ft.Icon(ft.Icons.TIMER_ROUNDED, size=14, color="#8E8E93"),
-                        self.offset_input,
-                        ft.Container(width=10),
-                        ft.Icon(ft.Icons.VOLUME_UP_ROUNDED, size=16, color="#8E8E93"),
-                        self.volume_slider
-                    ], alignment=ft.MainAxisAlignment.END, spacing=5)
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-            ], spacing=0),
-            padding=ft.padding.only(left=20, right=20, top=5, bottom=10),
-            bgcolor="#000000",
-            height=95
+                    ft.Container(
+                        content=self.btn_browse,
+                        width=180,
+                        alignment=ft.Alignment(-1, 0)
+                    ),
+                    
+                    ft.Container(
+                        content=self.btn_play_pause_wrapper,
+                        alignment=ft.Alignment(0, 0)
+                    ),
+                    
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Row([
+                                ft.Icon(ft.Icons.TIMER_ROUNDED, size=16, color="#8E8E93"),
+                                self.offset_input,
+                            ], spacing=4),
+                            ft.Container(width=8),
+                            ft.Row([
+                                ft.Icon(ft.Icons.VOLUME_UP_ROUNDED, size=18, color="#8E8E93"),
+                                self.volume_slider
+                            ], spacing=4)
+                        ], alignment=ft.MainAxisAlignment.END, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                        width=260,
+                        alignment=ft.Alignment(1, 0)
+                    )
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            ], spacing=2),
+            padding=ft.padding.only(left=24, right=24, top=10, bottom=14),
+            bgcolor="#0A0A0A",
+            height=115
         )
 
         return ft.Column([
