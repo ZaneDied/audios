@@ -12,6 +12,6 @@ VLC Media Player is required for the audio engine, and FFmpeg is required to pro
 winget install VideoLAN.VLC
 winget install ffmpeg
 
-pip install "flet==0.21.2" python-vlc Pillow requests pytubefix syncedlyrics urllib3
+pip install "flet==0.21.2", python-vlc, Pillow, requests, pytubefix, syncedlyrics, urllib3, certifi
 
 python main.py -- to run the final program from sprint 3

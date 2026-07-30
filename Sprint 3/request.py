@@ -6,9 +6,12 @@ import asyncio
 from pytubefix import YouTube
 import syncedlyrics
 import urllib3
+import ssl
+
 
 # Disable SSL warnings for restricted/school networks
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+ssl._create_default_https_context = ssl._create_unverified_context
 
 def clean_filename(name):
     """Removes invalid OS characters from filenames."""
