@@ -21,9 +21,9 @@ def main(page: ft.Page):
 
     # Dynamic path construction
     base_dir = os.path.join(os.getcwd(), "MusicLibrary")
-    artist = "Luci4"
-    album = "Hey"
-    song = "Hey"
+    artist = "Tyler， The Creator, Frank Ocean"
+    album = "Flower Boy"
+    song = "Where This Flower Blooms"
 
     audio_path = os.path.join(base_dir, artist, album, f"{song}.mp3")
     lrc_path = os.path.join(base_dir, artist, album, f"{song}.lrc")

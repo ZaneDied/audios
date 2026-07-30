@@ -1,0 +1,30 @@
+DEFINE parse_lrc(content):
+    EXTRACT timestamp and lyric lines
+    CONVERT timestamps to milliseconds
+    RETURN sorted list of {time, text}
+
+MAIN(page):
+    SET file paths for audio and lyrics
+    INITIALIZE pygame mixer
+    LOAD audio file
+    READ and parse lyrics into lrc_data
+
+    CREATE lyric display text
+    SET current_lyric_index to -1
+
+    DEFINE async sync_loop:
+        WHILE true:
+            IF music is playing:
+                GET current position
+                FIND current lyric based on position
+                UPDATE lyric display if changed
+            ELSE:
+                RESET lyric display
+            WAIT 50ms
+
+    START sync_loop
+
+    ADD UI:
+        - Lyric display container
+        - Play button to start playback
+END

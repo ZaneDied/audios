@@ -1,0 +1,25 @@
+DEFINE parse_lrc(content):
+    EXTRACT timestamp and lyric lines
+    CONVERT timestamps to milliseconds
+    RETURN sorted list of {time, text}
+
+MAIN(page):
+    SET file paths for audio and lyrics
+    INIT VLC player with flags
+    LOAD media
+    IF lyrics file exists:
+        READ and parse lyrics into lrc_data
+
+    CREATE UI: lyric display, time, progress, volume sliders, control buttons
+
+    DEFINE async sync_loop:
+        WHILE playing:
+            UPDATE current time and progress
+            FIND current lyric based on time
+            UPDATE lyric display if changed
+            WAIT 50ms
+
+    START sync_loop
+
+    MAP buttons to play/pause/stop actions
+END
