@@ -21,7 +21,7 @@ winget install ffmpeg
 
 ### 2. Install Required Python Packages
 
-> **Important Flet Version Requirement:** > * For **Sprint 1 and Sprint 2 and setup version in Spring 3**, use `flet==0.82.2`.
+> **Important Flet Version Requirement:** > * For **Sprint 1 and Sprint 2 and setup version in Sprint 3**, use `flet==0.82.2`.
 > * For the **Final Sprint 3 version**, install `flet==0.21.2` to ensure full UI compatibility and prevent framework module errors.
 
 Run the following command for the final version:
